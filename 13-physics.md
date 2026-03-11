@@ -94,9 +94,9 @@ Players use `CharacterBody3D` with `move_and_slide()`.
 
 | Parameter | Value | Notes |
 |-----------|-------|-------|
-| Walk speed | 4.3 m/s | Comparable to Minecraft's 4.317 m/s |
-| Sprint speed | 5.6 m/s | ~30% faster, consumes stamina |
-| Crouch speed | 1.3 m/s | ~30% of walk speed |
+| Walk speed | 4.3 m/s | Default movement, base noise level |
+| Sprint speed | 6.88 m/s | Shift held, +60% of walk speed, increased noise |
+| Crouch speed | 1.3 m/s | Ctrl held, ~30% of walk, reduced noise, 1-block-tall |
 | Jump velocity | 7.0 m/s | Tuned to clear 1.25 blocks |
 | Gravity | 24.0 m/s² | Tuned for snappy voxel-scale feel (not real-world 9.8) |
 | Terminal velocity | 50.0 m/s | Cap on fall speed |
@@ -105,12 +105,46 @@ Players use `CharacterBody3D` with `move_and_slide()`.
 | Swim speed | 2.5 m/s | Reduced in water |
 | Climb speed | 3.0 m/s | On ladders/vines |
 
+**Movement modes:**
+- **Walk (default):** Base movement speed, standard collision (0.4 radius, 1.6 height capsule)
+- **Sprint (Shift):** Faster speed, only on ground, cannot sprint while crouching
+- **Crouch (Ctrl):** Slower speed, collision shape shrinks to 1-block-tall (0.8 height capsule),
+  camera smoothly transitions to crouch eye height (0.7). Crouching reduces movement noise
+  for stealth. Player cannot stand up if blocks are above (headroom check via raycast).
+  Cannot jump while crouching. **Edge guard:** while crouching, the player can lean over
+  edges but cannot walk off completely. Lateral velocity is zeroed per-axis only when the
+  entire footprint would be over air (all four corners lose ground contact). Each axis is
+  tested independently so the player can slide along edges. This allows peering over ledges
+  and safe bridging — the player hangs partially over the void but is stopped before falling.
+- **Slide (Sprint → Crouch):** Pressing crouch while sprinting initiates a slide. The player
+  drops to crouched collision (0.8 height) while retaining sprint momentum (×1.1 boost on
+  entry). Friction is computed dynamically from entry speed so that slide distance scales
+  with velocity (distance = entry_speed × 0.53 blocks). At +60% sprint, this gives ~4 blocks
+  of slide before settling to crouch speed. Releasing the sprint key does not cancel the
+  slide; only releasing crouch or leaving the ground ends it. Releasing crouch during a slide stands
+  up immediately (if headroom allows). The slide direction is locked to the player's movement
+  direction at the moment of initiation. Edge guard is disabled during slides.
+
 **Responsive controls:**
 - **Coyote time:** 100ms grace period after walking off an edge where jump still works
 - **Jump buffering:** If jump is pressed within 100ms before landing, jump executes on land
 - **Variable jump height:** Hold jump = full height, tap jump = lower arc (gravity multiplier
   increases when ascending with jump released)
 - **Air control:** Reduced but nonzero lateral control while airborne (30% of ground control)
+
+**Movement XP accrual:**
+All movement accrues XP towards the movement skill tree (see doc 09). Each movement type
+grants XP at a different rate:
+
+| Action | XP category | Notes |
+|--------|------------|-------|
+| Walking | Physical | Base rate |
+| Sprinting | Physical | Higher rate per distance |
+| Crouching/sneaking | Physical | Modest rate, stealth bonuses unlocked via skill tree |
+| Sliding | Physical | Per-slide grant, encourages dynamic movement |
+| Jumping | Physical | Per-jump grant |
+| Swimming | Physical | Moderate rate |
+| Climbing | Physical | Moderate rate |
 
 ### Slope handling
 

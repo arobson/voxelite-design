@@ -46,6 +46,10 @@ and avoids breaking what came before.
 - Terrain generator and block library built dynamically from registry data
 - 6 block YAML definitions, 4 item YAML definitions
 - Debug overlay shows registry stats, held item, target block ID
+- Crouch: Ctrl shrinks collision to 1-block-tall, lowers camera, prevents standing under low ceilings
+- Sprint: Shift for +60% walk speed (6.88 m/s), disabled while crouching or airborne
+- Sprint-to-crouch slide: pressing crouch while sprinting preserves momentum with gradual friction decay
+- Movement modes emit GameBus events for future XP accrual (movement skill tree, Phase 5)
 
 ---
 
@@ -72,6 +76,8 @@ and avoids breaking what came before.
 
 20. Health, buffs, consumables
 21. Combat (melee/ranged, damage types)
+    - Wire movement XP accrual (walk, sprint, crouch, jump → Physical XP)
+    - Wire crouch noise reduction into stealth/detection system
 22. NPC entity subtype (dialogue, reputation, schedule)
 23. Event tree system (YAML parser, state store, triggers)
 24. Skill/XP system
