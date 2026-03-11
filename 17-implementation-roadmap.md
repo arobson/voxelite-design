@@ -25,13 +25,27 @@ and avoids breaking what came before.
 
 ---
 
-## Phase 2 — Core Engine Systems
+## Phase 2 — Core Engine Systems ✅
 
 6. YAML loading (godot-yaml GDExtension integration)
 7. Registry system (namespaced ID registration, lookup)
 8. Message bus (command/event dispatch)
 9. Block registry (blocks defined in YAML, loaded into registry)
 10. Item registry + basic inventory (hotbar, pick up/drop)
+
+**Delivered:**
+- godot-yaml GDExtension v2.1.2 (RapidYAML C++ parser)
+- Base Registry class with namespaced ID support (`namespace:name` format)
+- BlockRegistry with bidirectional ID/voxel-index mapping, sort-ordered YAML loading
+- ItemRegistry with YAML loading and block placement links
+- Registries autoload loads core content from `data/core/` at startup
+- GameBus enhanced with command validation layer (`submit_command` + `register_validator`)
+- Inventory: 36 slots (9 hotbar + 27 backpack), stacking, add/remove/consume
+- Hotbar UI: number keys 1-9, scroll wheel, visual selection highlight
+- Block interaction uses registries for hardness-based break time, drops to inventory
+- Terrain generator and block library built dynamically from registry data
+- 6 block YAML definitions, 4 item YAML definitions
+- Debug overlay shows registry stats, held item, target block ID
 
 ---
 
