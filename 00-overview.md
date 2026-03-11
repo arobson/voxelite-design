@@ -26,6 +26,7 @@ Provide these files to Claude Code as project context before beginning implement
 | `14-lighting.md` | RGB block light, skylight, data textures, SDFGI integration, entity lights |
 | `15-ui-system.md` | Theme system, mod YAML GUIs, drag-and-drop, crafting auto-pull, HUD |
 | `16-performance.md` | Hardware tiers, frame budgets, quality presets, memory, optimization |
+| `17-implementation-roadmap.md` | Six-phase build plan from skeleton to multiplayer |
 
 ---
 
