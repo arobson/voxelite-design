@@ -1,0 +1,41 @@
+{
+  "project": "voxelite",
+  "workspace": "/home/alex/git/voxelite",
+  "design_repo": "design",
+  "cluster_repo": "cluster",
+  "deploy_repo": "deploy",
+  "repos": [
+    {
+      "name": "voxelite-game",
+      "path": "./voxelite-game",
+      "description": "Godot 4 game client and dedicated server",
+      "type": "service",
+      "language": "gdscript",
+      "dependencies": ["voxelite-schemas"]
+    },
+    {
+      "name": "voxelite-event-editor",
+      "path": "./voxelite-event-editor",
+      "description": "Tauri desktop app for visual event tree authoring",
+      "type": "frontend",
+      "language": "typescript",
+      "dependencies": ["voxelite-schemas"]
+    },
+    {
+      "name": "voxelite-mod-tools",
+      "path": "./voxelite-mod-tools",
+      "description": "CLI tools for mod validation, scaffolding, and world management",
+      "type": "package",
+      "language": "rust",
+      "dependencies": ["voxelite-schemas"]
+    },
+    {
+      "name": "voxelite-schemas",
+      "path": "./voxelite-schemas",
+      "description": "Shared YAML schema definitions for all data types",
+      "type": "package",
+      "language": "yaml",
+      "dependencies": []
+    }
+  ]
+}
