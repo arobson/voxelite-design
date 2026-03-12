@@ -53,12 +53,26 @@ and avoids breaking what came before.
 
 ---
 
-## Phase 3 — Content Pipeline
+## Phase 3 — Content Pipeline (in progress)
 
 11. Mod loader (discover mods, parse mod.yaml, load order)
 12. LuaJIT integration (sandboxed VM, basic API surface)
 13. Entity system (archetypes, component registry, spawning)
 14. Base game as "core" mod (blocks, items, entities in YAML+Lua)
+
+**Delivered so far:**
+- Base game restructured as "core" mod (`mods/core/` with `mod.yaml` manifest)
+- Mod loader: directory discovery, manifest parsing, dependency graph, topological sort
+- Core always loads first; circular dependency detection; conflict checking
+- Registries autoload uses mod loader instead of hardcoded paths
+- Old `data/core/` removed — all content loaded through mod pipeline
+- Entity registry with YAML prototype loading (directory and flat-file support)
+- Component registry with indexed queries (query by component set)
+- Entity manager: archetype-based spawning via message bus commands
+- Four archetype builders: creature, item_drop, projectile, block_entity
+- Component sets auto-built from archetype + prototype data
+- Entity spawn/despawn flows through GameBus command validation
+- Debug overlay shows mod count and entity registry stats
 
 ---
 

@@ -44,15 +44,22 @@
 - Tables as first-class objects fit game data models naturally
 
 **Integration approach:**
-- Embed LuaJIT via GDExtension
+- Built on [gilzoide/lua-gdextension](https://github.com/gilzoide/lua-gdextension) with
+  the LuaJIT variant — provides GDExtension lifecycle, Godot type marshalling (Variant ↔ Lua),
+  and multiple `LuaState` instances
+- Custom `ModSandbox` wrapper adds: sandboxing, budget enforcement, engine API surface
 - Each mod gets its own `lua_State` — complete VM isolation
-- Engine API exposed via `lua_setfenv` + whitelist of permitted globals
 - Dangerous globals stripped: `io`, `os`, `require`, `package`, `debug`, `load`, `dofile`, `loadfile`
-
-**YAML in Lua:**
-- `lua-yaml` (pure Lua library) bundled in the mod runtime
-- Exposed as `YAML.load(text)` in the mod Lua API
-- Mods can parse their own YAML config files from within scripts
+- No filesystem access from Lua — engine pre-loads all mod data during the load pipeline
+  and injects it as Lua tables. No path validation or scoping needed
+- CPU budget via wall-clock timing (not debug hooks, which disable JIT compilation)
+- Memory budget via custom allocator (`lua_setallocf`) with per-mod cap
+- Command buffer pattern: Lua scripts read from an immutable state snapshot and write
+  intents to a command buffer; engine validates and applies on the main thread
+- Physics lookups (distances, radius queries, block state) resolved against cached snapshot
+  data, not live PhysicsServer calls — free for Lua to call at high frequency
+- Architecture supports future parallelism: isolated `lua_State` + immutable snapshot +
+  per-mod command buffers enable fanning ticks to WorkerThreadPool without code changes
 
 ---
 

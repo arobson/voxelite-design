@@ -566,16 +566,127 @@ Mods.require(mod_id)          -- load another mod's public API
 
 ---
 
+## Lua Runtime Architecture
+
+### GDExtension foundation
+
+The Lua runtime is built on [gilzoide/lua-gdextension](https://github.com/gilzoide/lua-gdextension)
+with the LuaJIT variant. This provides the GDExtension lifecycle, Godot type marshalling
+(Variant ↔ Lua for Vector3, Color, Dictionary, Array, Callable), and multiple `LuaState`
+instances. A custom `ModSandbox` wrapper layer adds sandboxing, budget enforcement, and the
+engine API surface.
+
+### ModSandbox
+
+Each mod gets a `ModSandbox` instance wrapping an isolated `LuaState`:
+
+```
+ModSandbox
+├── LuaState (LuaJIT, isolated lua_State)
+├── Engine API tables (Entity, World, Behavior, Events, etc.)
+├── Pre-loaded mod data (YAML → Lua tables, loaded at pipeline step 5)
+├── Command buffer (write intents collected during tick)
+├── Wall-clock budget tracker
+└── Memory allocator with cap
+```
+
+### No filesystem access
+
+Mods have **no runtime filesystem API**. All mod data files (YAML definitions, Lua scripts,
+lookup tables) are loaded by the engine during the mod load pipeline (steps 4-6) and injected
+into the mod's Lua state as tables. This eliminates an entire class of security concerns —
+no path validation, no scoping, no read-only wrappers needed.
+
+Mods that ship large datasets (e.g., thousands of entries) have their data pre-loaded into
+Lua tables at mod init. The 32MB memory budget per mod is generous for data tables.
+
+### Command buffer pattern
+
+Lua scripts never directly mutate game state. All writes flow through a command buffer:
+
+```
+Lua on_tick() → reads state snapshot → emits commands to buffer
+  → Frame ends
+  → Engine drains command buffers on main thread
+  → Commands validated → events emitted → state updated
+```
+
+This decouples Lua execution from state mutation, which:
+- Prevents race conditions if Lua ticks are parallelized later
+- Matches the message bus command/event pattern already in the engine
+- Ensures all state changes are validated before application
+
+### State snapshot (read-only)
+
+Before Lua ticks run, the engine captures a read-only snapshot of relevant game state:
+
+```
+Snapshot contents:
+├── Entity positions, rotations, velocities
+├── Entity health, AI state, buff lists
+├── Nearby block state (within active range)
+├── Player positions and states
+├── Light levels (cached from lighting system)
+└── Biome data (cached from world gen)
+```
+
+Lua API calls like `entity:position()`, `entity:distance_to()`, `World.get_block()`,
+`World.get_light_level()`, and `World.get_entities_in_radius()` read from the snapshot,
+not from the live Godot scene tree or PhysicsServer. This means:
+
+- **Physics lookups are free** — no PhysicsServer calls from Lua, just cached data reads
+- **Consistent state** — all Lua scripts in a frame see the same snapshot, no order-dependent
+  bugs from one script's changes affecting another's reads
+- **Thread-safe** — snapshot is immutable during Lua execution, enabling future parallelism
+
+Snapshot scope scales with need. Phase 3 starts with entity positions and nearby blocks.
+Future phases expand to include spatial indices for radius queries, block lighting, etc.
+
+### Threading model
+
+**Phase 3 (initial):** All Lua ticks run on the main thread. The command buffer and snapshot
+interfaces are in place from day one, but execution is sequential.
+
+**Future phases:** Because each mod has an isolated `lua_State` and reads from an immutable
+snapshot, mod ticks can be fanned out to Godot's WorkerThreadPool:
+
+```
+Per frame:
+  1. Main thread: capture state snapshot
+  2. Worker threads: tick each mod's Lua scripts against snapshot
+     └── Each mod writes to its own command buffer (no contention)
+  3. Main thread: drain all command buffers, validate, apply
+  4. Main thread: emit events, update scene tree
+```
+
+This is a deployment change, not an architecture change — the same ModSandbox interfaces
+work in both single-threaded and multi-threaded modes.
+
+**What runs on worker threads (future):**
+- Entity AI ticks (per-mod `lua_State` isolation)
+- Terrain generators (already async in godot_voxel)
+- System hooks (`on_world_tick`)
+- Custom component ticks
+
+**What stays on the main thread (always):**
+- Command validation and state mutation
+- Scene tree modifications (spawn/despawn)
+- Animation, sound, VFX triggers
+- Event broadcast
+
+---
+
 ## Security Model
 
 ### Lua Sandbox
 - Each mod gets its own isolated `lua_State` — complete VM isolation
 - Stripped globals: `io`, `os`, `require`, `package`, `debug`, `load`, `dofile`, `loadfile`
-- Filesystem: read-only access to own mod directory only via safe path wrappers
-- Network: none. No sockets, no HTTP.
+- No filesystem access — engine pre-loads all mod data during the load pipeline
+- Network: none. No sockets, no HTTP
 - Native libraries: mods cannot load `.dll`/`.so` files
 - Cross-mod: only via declared public APIs (`Mods.require`) — no direct state sharing
-- Error isolation: Lua error in one mod is caught, logged; that mod's tick is skipped
+- Error isolation: all Lua calls wrapped in `lua_pcall`; errors caught, logged, mod's
+  tick skipped. One mod crashing never affects other mods or the engine
 
 ### CPU & Memory Budgets
 
@@ -587,8 +698,17 @@ Mods.require(mod_id)          -- load another mod's public API
 | Terrain generators | 5ms per chunk (worker thread) |
 | Memory per mod | 32MB default (server-configurable) |
 
-Budgets enforced via Lua debug hooks. Mods exceeding budget are flagged in the debug
-overlay; repeat offenders can be force-disabled.
+**CPU enforcement:** Wall-clock timing with per-call measurement. The engine measures elapsed
+time around each Lua call (`on_tick`, `on_spawn`, etc.) and accumulates per mod per frame.
+This preserves LuaJIT's JIT compilation — using Lua debug hooks would disable the JIT
+entirely, defeating the purpose of choosing LuaJIT over PUC Lua.
+
+Mods exceeding budget are flagged in the debug overlay with per-mod timing breakdowns.
+Repeat offenders are throttled (tick rate halved, then quartered). Server operators can
+force-disable mods via console.
+
+**Memory enforcement:** Custom allocator via `lua_setallocf` tracks and caps per-mod
+allocation. Allocation failures in Lua are caught by `lua_pcall` error handling.
 
 ### Asset Validation
 - Allowed file types: `.png`, `.jpg`, `.ogg`, `.wav`, `.mp3`, `.glb`, `.yaml`, `.lua`

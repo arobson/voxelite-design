@@ -400,12 +400,21 @@ SpawnedEvent received by:
 
 ### Stage 4 — Active life
 
-Each frame, engine systems tick entities with matching components:
+Each frame follows a snapshot → tick → apply cycle:
+
+**Step 1 — State snapshot (main thread):**
+The engine captures a read-only snapshot of entity and world state before any Lua runs.
+This includes entity positions, health, AI state, nearby block data, and player positions.
+Physics lookups (distances, radius queries, block checks) are resolved against this cached
+data rather than calling PhysicsServer, making them free for Lua scripts to use at high
+frequency. All Lua scripts in a frame see the same consistent snapshot.
+
+**Step 2 — System ticks:**
 
 | System | Ticks entities with | Action |
 |--------|-------------------|--------|
 | Physics | Physics | Godot move_and_slide / integrate |
-| AI | AI + Health (alive only) | Call Lua on_tick(), evaluate state machine |
+| AI | AI + Health (alive only) | Call Lua on_tick(), reads snapshot, emits commands |
 | Buff | Buffs | Decrement timers, remove expired, apply effects |
 | Navigation | Navigation | Advance along path, request repath if blocked |
 | Animation | Animation | Update blend trees from movement/state |
@@ -416,8 +425,23 @@ Each frame, engine systems tick entities with matching components:
 | Chunk tracker | Transform | Update chunk association if entity moved across boundary |
 | Custom components | (per component) | Call component Lua on_tick() |
 
-**Budget enforcement:** AI system tracks time spent per entity per mod. Scripts
-exceeding budget are throttled (tick rate reduced) and flagged in the debug overlay.
+**Step 3 — Command application (main thread):**
+Lua ticks emit commands (spawn, damage, set_state, etc.) into per-mod command buffers
+rather than directly mutating game state. After all ticks complete, the engine drains
+the buffers on the main thread, validates each command, and applies valid ones. This
+matches the message bus command/event pattern and ensures all state changes go through
+the host validation layer.
+
+**Budget enforcement:** Wall-clock timing per Lua call. The engine measures elapsed time
+around each `on_tick()`, `on_spawn()`, etc. and accumulates per mod per frame. This
+preserves LuaJIT's JIT compilation (using Lua debug hooks would disable the JIT entirely).
+Scripts exceeding budget are throttled (tick rate reduced) and flagged in the debug overlay
+with per-mod timing breakdowns.
+
+**Threading (future):** Because Lua reads from an immutable snapshot and writes to
+isolated command buffers, mod ticks can be parallelized across Godot's WorkerThreadPool
+without code changes. Each mod's `lua_State` is fully isolated — no shared mutable state
+between mods during ticks. See design doc 05 (modding system) for the full threading model.
 
 **Entity event subscriptions:** Entities subscribe to bus events on spawn. Subscriptions
 are automatically cleaned up on entity death/removal.
@@ -780,6 +804,9 @@ To prevent performance degradation, the engine enforces entity budgets.
 | Max dormant entities per chunk | 128 | Yes (world settings) |
 | AI tick budget per entity | 0.1ms | Yes (per mod) |
 | AI tick budget total per frame | 4ms | Yes (world settings) |
+
+AI tick budgets are enforced via wall-clock timing, not Lua debug hooks (which would
+disable LuaJIT's JIT compiler). See design doc 05 for budget enforcement details.
 
 When budgets are reached:
 - Spawn system stops spawning in affected chunks
