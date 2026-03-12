@@ -53,14 +53,14 @@ and avoids breaking what came before.
 
 ---
 
-## Phase 3 — Content Pipeline (in progress)
+## Phase 3 — Content Pipeline ✅
 
 11. Mod loader (discover mods, parse mod.yaml, load order)
 12. LuaJIT integration (sandboxed VM, basic API surface)
 13. Entity system (archetypes, component registry, spawning)
 14. Base game as "core" mod (blocks, items, entities in YAML+Lua)
 
-**Delivered so far:**
+**Delivered:**
 - Base game restructured as "core" mod (`mods/core/` with `mod.yaml` manifest)
 - Mod loader: directory discovery, manifest parsing, dependency graph, topological sort
 - Core always loads first; circular dependency detection; conflict checking
@@ -72,7 +72,16 @@ and avoids breaking what came before.
 - Four archetype builders: creature, item_drop, projectile, block_entity
 - Component sets auto-built from archetype + prototype data
 - Entity spawn/despawn flows through GameBus command validation
-- Debug overlay shows mod count and entity registry stats
+- gilzoide/lua-gdextension v0.7.0 (LuaJIT variant) installed and enabled
+- ModSandbox: per-mod isolated LuaState, stripped globals (io, os, require, package, debug)
+- Command buffer pattern: Lua writes intents, engine validates and applies on main thread
+- State snapshot: entity positions, health, components, player position captured per frame
+- Behavior system: per-frame Lua ticks with snapshot → tick → drain cycle
+- Commands API: spawn, despawn, damage, set_block, move_toward, stop, play_sound, emit_event
+- Entity/World snapshot read API: positions, health, components, player position, nearby query
+- Wall-clock budget tracking with per-mod timing and budget warnings
+- Test creature with Lua behavior script (follows player, hovers above)
+- Debug overlay shows mod count, entity registry stats, Lua sandbox timing per mod
 
 ---
 
