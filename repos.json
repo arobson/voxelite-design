@@ -36,6 +36,14 @@
       "type": "package",
       "language": "yaml",
       "dependencies": []
+    },
+    {
+      "name": "voxelite-model-rigger",
+      "path": "./voxelite-model-rigger",
+      "description": "Browser/desktop 3D model rigging and animation tool (SvelteKit + Babylon.js + Tauri)",
+      "type": "frontend",
+      "language": "typescript",
+      "dependencies": ["voxelite-schemas"]
     }
   ]
 }

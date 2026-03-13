@@ -4,5 +4,5 @@ Design stories, architecture decisions, and workspace manifest for the Voxelite 
 
 ## Contents
 
-- `design/` — Architecture design documents (00-16)
+- `design/` — Architecture design documents (00-18)
 - `repos.json` — Multi-repo workspace manifest

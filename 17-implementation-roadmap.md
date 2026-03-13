@@ -85,13 +85,68 @@ and avoids breaking what came before.
 
 ---
 
-## Phase 4 — World Systems
+## Phase 4 — World Systems ✅
 
-15. World generation pipeline (8-stage from design doc 06)
-16. Biome system (climate grid, biome selection)
-17. Lighting (RGB flood fill, data textures, skylight)
-18. Fluid system (enhanced cellular automaton)
-19. Save/load (SQLite chunks, YAML player data)
+15. World generation pipeline (8-stage from design doc 06) ✅ (stages 1-5, 8)
+16. Biome system (climate grid, biome selection) ✅
+17. Lighting (RGB flood fill, data textures, skylight) ✅ (data layer)
+18. Fluid system (enhanced cellular automaton) ✅
+19. Save/load (YAML metadata, binary chunk data, player persistence) ✅
+
+**Delivered (items 15-16):**
+- ClimateMap: 3 continent-scale FastNoiseLite fields (temperature, humidity, altitude)
+- BiomeRegistry: climate niche fitness scoring, block palettes, terrain params
+- 5 biome definitions (plains, forest, desert, mountains, ocean)
+- Biome-aware terrain generator: per-biome heightmap, block palette, beach layers
+- Cave generation: cheese caves (large chambers) + spaghetti caves (narrow tunnels), per-biome density/depth
+- Ore veins: 3D noise placement per biome ore table (coal, iron, gold)
+- New blocks: bedrock, coal_ore, iron_ore, gold_ore, gravel (11 total)
+- Bedrock floor at y=0
+- Terrain-aware spawn placement (player + entities query surface height)
+- SpawnSystem: periodic entity spawning from biome spawn tables with population cap
+- Thread-safe generation (pre-scaled coordinates, pre-built noise fields)
+
+**Delivered (item 17):**
+- LightGrid: per-chunk 18x18x18 RGBA8 light data storage (RGB block light + skylight)
+- LightManager: coordinates light propagation across chunks, provides query API
+- RGB BFS flood fill for block light (place + remove with re-propagation from border sources)
+- Skylight: top-down column scan with transparent block attenuation
+- Query API: get_block_level, get_block_color, get_sky_level, get_combined_level
+- SpawnSystem now checks light_level_min/max from entity spawn_rules
+- Wired into VoxelWorld lifecycle
+
+**Deferred (item 17 — visual shader):**
+- 3D data texture upload to GPU for shader sampling (requires custom ShaderMaterial integration with godot_voxel mesher)
+- Block flicker effects (shader-side noise modulation)
+- Entity OmniLight3D sources for held items / effects
+- SDFGI integration
+
+**Delivered (item 18):**
+- FluidSystem: enhanced cellular automaton with 6 core rules from design doc 13
+- Source blocks, downward flow, horizontal spread, level equalization, drain, source generation
+- Separate tick rate (4 Hz), lava flows every 3rd tick
+- Active fluid tracking (only ticks chunks with fluid), settled fluid detection
+- Reacts to block_broken/block_placed events to re-activate adjacent fluids
+- Wired into VoxelWorld lifecycle
+
+**Delivered (item 19):**
+- SaveManager: YAML metadata + binary chunk data (palette + RLE compression)
+- Save directory structure: world.yaml, state.yaml, players/*.yaml, chunks/*.bin
+- World metadata persistence (seed, settings, creation date, version)
+- Player data persistence (position, inventory serialization/deserialization)
+- Autosave every 60 seconds + save-on-exit via WM_CLOSE_REQUEST
+- List/delete saved worlds API
+- Inventory serialize/deserialize added to Inventory class
+- NewWorldScreen: world creation UI with seed + biome scale configuration
+
+**Deferred (items 17-19 — visual/advanced):**
+- Lighting: 3D data texture GPU upload, custom shader integration with godot_voxel mesher, block flicker, entity OmniLight3D, SDFGI integration
+- Fluids: custom water/lava shaders (semi-transparent surface, flow animation), entity swim/push physics, underwater camera effects
+- Save/load: SQLite backend for production (currently file-based), chunk save priority tiers, backup system, mod removal migration
+
+**Deferred to Phase 5+:**
+- Stage 6 (structure placement): requires StructureRegistry, structure template format, multi-chunk placement system using VoxelTool post-generation
+- Stage 7 (decoration pass): requires DecoratorRegistry, surface decoration system (trees, grass, boulders) using VoxelTool post-generation. Both stages need a post-generation pass system that operates on loaded chunks via VoxelTool rather than during initial VoxelGeneratorScript filling.
 
 ---
 
